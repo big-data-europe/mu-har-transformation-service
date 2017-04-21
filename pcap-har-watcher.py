@@ -14,13 +14,14 @@ import base64
 import yaml
 import random
 import subprocess
+import urllib2
 
 
 observed_pcaps = []
 docker_compose_file = {}
 
-elastic_host = os.environ['ELASTIC_HOST']
-elastic_port = os.environ['ELASTIC_PORT']
+elastic_host = "http://elasticsearch"
+elastic_port = "9200"
 pcap_read_dir = os.environ['PCAP_READ_DIR']
 har_output_dir = os.environ['HAR_OUTPUT_DIR']
 docker_compose_path = os.environ['DOCKER_COMPOSE_PATH']
@@ -88,9 +89,6 @@ def transform_pcap(root, pcap_file, inputfolder, outputfolder):
     cmd = "python pcap2har {input} {output}".format(input=os.path.join(root, pcap_file), output=output_name)
 
     subprocess.Popen(cmd, shell=True).wait()
-
-    # Only if it was properly transformed.
-    observed_pcaps.append(pcap_file)
 
     return output_name
 
@@ -186,10 +184,11 @@ def post_har(har_file, index, etype):
     url = elastic_host + ":" + elastic_port + "/" + index + "/" + etype + "?pretty"
 
     for i, entry in enumerate(log['entries']):
+        print('heh')
         entry['browser'] = browser if browser else { "name": "", "version": "mumble" }
         # del entry['response']['content'] # Delete the content? take only into account the request?
         response = requests.post(url, data = json.dumps(entry))
-        logging.info(response.text)
+        logger.info(response.text)
 
 
 def transformation_pipeline(inputfolder, outputfolder):
@@ -212,11 +211,13 @@ def transformation_pipeline(inputfolder, outputfolder):
                 enriched_har_name = enrich_har(har_name)
 
                 # Do not post the whole HAR in ElasticSearch, it is only created for debugging purposes.
-                # if not fich.split("_")[1] == "default":
-                #     # POST TO ElasticSearch.
-                #     logger.info("[+] Send file: {har} to ElasticSearch..".format(har=os.path.basename(har_name)))
-                #     post_har(har_name, "hars", "har")
-                # logger.info('--------------------------------------------------------------------')
+                if not fich.split("_")[1] == "default":
+                    # POST TO ElasticSearch.
+                    logger.info("[+] Send file: {har} to ElasticSearch..".format(har=os.path.basename(har_name)))
+                    post_har(har_name, "hars", "har")
+
+                    # Only if it was properly transformed.
+                    observed_pcaps.append(fich)
 
 
 def signal_handler(signal, frame):
@@ -232,12 +233,24 @@ def signal_handler(signal, frame):
     sys.exit(0)
 
 
+def is_elasticsearch_up():
+    try:
+        urllib2.urlopen(elastic_host + ":" + elastic_port, timeout=1)
+        return True
+    except urllib2.URLError as err:
+        return False
+
+
 if __name__ == '__main__':
     # Define handlers for cancelling signals
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGHUP, signal_handler)
 
+    while not is_elasticsearch_up():
+        logger.info("ElasticSearch not available yet.")
+        time.sleep(2)
+        continue
 
     docker_compose_file = parse_container_links(docker_compose_path)
 

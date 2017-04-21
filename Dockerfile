@@ -1,8 +1,6 @@
 FROM python:2.7
 MAINTAINER esteban.sastre@tenforce.com
 
-ENV ELASTIC_HOST "http://localhost"
-ENV ELASTIC_PORT "9200"
 ENV PCAP_READ_DIR "pcap/"
 ENV HAR_OUTPUT_DIR "har/"
 ENV DOCKER_COMPOSE_PATH "docker-compose.yml"
