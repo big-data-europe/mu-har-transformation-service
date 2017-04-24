@@ -184,7 +184,6 @@ def post_har(har_file, index, etype):
     url = elastic_host + ":" + elastic_port + "/" + index + "/" + etype + "?pretty"
 
     for i, entry in enumerate(log['entries']):
-        print('heh')
         entry['browser'] = browser if browser else { "name": "", "version": "mumble" }
         # del entry['response']['content'] # Delete the content? take only into account the request?
         response = requests.post(url, data = json.dumps(entry))
