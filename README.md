@@ -7,22 +7,24 @@ included in pcap file naming scheme.
   * Decode the base64 strings into JSON objects.
   * Add additional container information into the HAR file to allow the tracing of http responses accross the docker network.
 
+Once the PCAP files are converted into HAR format, they will be pushed into an ElasticSearch instance to visualize the data in Kibana.
+
 ## Usage
 
 ```sh
-$ ./pcap-har-watcher.py -i <input_folder> -o <output_folder> -p <period> -dc <docker-compose_file>
+docker run --rm -it \
+           -v "$PWD"/src:/app/src/ \
+           -v "$PWD"/pcap:/app/pcap \
+           -v "$PWD"/har:/app/har \
+           -v "$PWD"/docker-compose.yml:/app/docker-compose.yml \
+           --name mu-har-transformation \
+           mu-har-transformation
+
 ```
 
-  * -i <input_folder>: the folder where all the .pcap files are being periodically stored.
-  * -o <output_folder>: the folder where the transformed .pcap into .har files are stored. This folder will replicate the same structure as the **input_folder**.
-  * -p <period>: the amount of time in seconds the script will look for new pcap files for transformation.
-  * -dc <docker_compose_file>: the docker compose file to extract information about the containers links.
-
-## Example
-
-```sh
-$ ./pcap-har-watcher.py -i ../docker-watcher/pcap/ -o output/ -p 6 -dc docker-compose.yml
-```
+* The **pcap/** folder contains the .pcap files generated previously by the **mu-docker-watcher** microservice.
+* The **har/** folder contains the .har (JSON) files converted from the .pcap.
+* The **docker-compose.yml** file contains information about the links that are between containers, and that information needs to be added to the .har files.
 
 
 ## Acknowledgments
