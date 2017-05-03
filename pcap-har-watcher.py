@@ -18,13 +18,14 @@ import urllib2
 
 
 observed_pcaps = []
-docker_compose_file = {}
+containers_link_info = {}
 
 elastic_host = "http://elasticsearch"
 elastic_port = "9200"
 pcap_read_dir = os.environ['PCAP_READ_DIR']
 har_output_dir = os.environ['HAR_OUTPUT_DIR']
-docker_compose_path = os.environ['DOCKER_COMPOSE_PATH']
+container_data_dir = os.environ['CONTAINER_DATA_DIR']
+container_data_file = os.environ['CONTAINER_DATA_FILE']
 sleep_period = os.environ['SLEEP_PERIOD']
 
 
@@ -51,18 +52,21 @@ def get_module_logger(mod_name):
 logger = get_module_logger(__name__)
 
 
-def parse_container_links(yml_file):
+def parse_container_links(container_name):
     """
-    Parses a given docker-compose YML file and creates a dictionary with all the linked containers that compose the network.
+    Parses the containers.json file to extract information about the links to other containers for a given one.
 
     Args:
-        yml_file: the docker-compose.yml file
+        container_name: the container to look for.
     """
 
-    containers = {}
-    stream = file(yml_file, "r")
-    drc_file = yaml.safe_load(stream)
-    containers_links = { key: { elem.split(':')[0]: elem.split(':')[1] for elem in value['links'] } for (key, value) in drc_file['services'].iteritems() if 'links' in value }
+    containers_links = {}
+    containers_file = container_data_dir + container_data_file
+    decoded = json.loads(open(containers_file).read())
+    container = filter(lambda container: container_name in container['name'], decoded)
+    if container: # If not empty
+        containers_links = container[0]['links']
+
     return containers_links
 
 
@@ -105,8 +109,13 @@ def enrich_har(har_file):
         har_file: the har file
     """
     container_name = har_file.split("_")[1]
+
+    # If the container is not yet in the saved containers info, save it for later use.
+    if not container_name in containers_link_info:
+        containers_link_info[container_name] = parse_container_links(container_name)
+
     decoded = json.loads(open(har_file).read())
-    result = {}
+
     result = parse_recursive_har(decoded, har_file)
 
     newname = har_file[:-4] + '.trans.har'
@@ -129,11 +138,11 @@ def parse_recursive_har(har, har_name, isBase64 = False, isEntry = False):
         container_name = har_name.split("_")[1]
         if container_name == "default":
             interface = har_name.split('_')[2]
-            result['links'] = docker_compose_file
+            result['links'] = containers_link_info
         else:
             interface = har_name.split('_')[5]
-            if container_name in docker_compose_file:
-                result['links'] = docker_compose_file[container_name]
+            if container_name in containers_link_info:
+                result['links'] = containers_link_info[container_name]
         result['meta'] = { 'container': container_name, 'interface': interface }
 
     # Loop through the keys in the HAR file
@@ -219,19 +228,6 @@ def transformation_pipeline(inputfolder, outputfolder):
                     observed_pcaps.append(fich)
 
 
-def signal_handler(signal, frame):
-    """
-    Remove the containers information file if it exists upon recieving either SIGINT or SIGKILL.
-    """
-    msg = "[+] Clean up containers file: {file}".format(file=os.getcwd() + '/' + os.environ['HAR_OUTPUT_DIR'])
-    logger.info(msg)
-    try:
-        os.remove(os.getcwd() + '/' + os.environ['HAR_OUTPUT_DIR'])
-    except OSError:
-        pass
-    sys.exit(0)
-
-
 def is_elasticsearch_up():
     try:
         urllib2.urlopen(elastic_host + ":" + elastic_port, timeout=1)
@@ -241,17 +237,11 @@ def is_elasticsearch_up():
 
 
 if __name__ == '__main__':
-    # Define handlers for cancelling signals
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGHUP, signal_handler)
 
     while not is_elasticsearch_up():
         logger.info("ElasticSearch not available yet.")
         time.sleep(2)
         continue
-
-    docker_compose_file = parse_container_links(docker_compose_path)
 
     while True:
         if os.path.exists(pcap_read_dir):

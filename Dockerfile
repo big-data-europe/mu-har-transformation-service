@@ -3,7 +3,8 @@ MAINTAINER esteban.sastre@tenforce.com
 
 ENV PCAP_READ_DIR "pcap/"
 ENV HAR_OUTPUT_DIR "har/"
-ENV DOCKER_COMPOSE_PATH "docker-compose.yml"
+ENV CONTAINER_DATA_DIR 'containers/'
+ENV CONTAINER_DATA_FILE 'containers.json'
 ENV SLEEP_PERIOD '2'
 
 RUN mkdir /app
