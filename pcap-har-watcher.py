@@ -15,6 +15,7 @@ import yaml
 import random
 import subprocess
 import urllib2
+import shutil
 
 
 observed_pcaps = []
@@ -24,6 +25,7 @@ elastic_host = "http://elasticsearch"
 elastic_port = "9200"
 pcap_read_dir = os.environ['PCAP_READ_DIR']
 har_output_dir = os.environ['HAR_OUTPUT_DIR']
+backups_dir = os.environ['BU_DIR']
 container_data_dir = os.environ['CONTAINER_DATA_DIR']
 container_data_file = os.environ['CONTAINER_DATA_FILE']
 sleep_period = os.environ['SLEEP_PERIOD']
@@ -92,7 +94,9 @@ def transform_pcap(root, pcap_file, inputfolder, outputfolder):
     output_name = os.path.join(new_output_folder, pcap_file) + ".har"
     cmd = "python pcap2har {input} {output}".format(input=os.path.join(root, pcap_file), output=output_name)
 
+    # move file to backup
     subprocess.Popen(cmd, shell=True).wait()
+    shutil.move(os.path.join(root, pcap_file), os.path.join(backups_dir, pcap_file))
 
     return output_name
 
@@ -122,6 +126,11 @@ def enrich_har(har_file):
     with open(newname, 'w') as f:
         json.dump(result, f, indent=2, encoding='utf8', sort_keys=True)
         f.write('\n')
+
+    # move file to backup
+    har_basename = os.path.basename( har_file )
+    shutil.move(har_file, os.path.join(backups_dir, har_basename))
+
     return newname
 
 
@@ -198,6 +207,10 @@ def post_har(har_file, index, etype):
         response = requests.post(url, data = json.dumps(entry))
         logger.info(response.text)
 
+    # move file to backup
+    har_basename = os.path.basename( har_file )
+    shutil.move(har_file, os.path.join(backups_dir, har_basename))
+
 
 def transformation_pipeline(inputfolder, outputfolder):
     """
@@ -207,6 +220,13 @@ def transformation_pipeline(inputfolder, outputfolder):
         inputfolder: input folder to look for pcap files.
         outputfolder: output folder to save the converted har files.
     """
+    if not os.path.exists(backups_dir):
+        try:
+            os.makedirs(backups_dir)
+        except OSError as exc: # Guard against race condition
+            if exc.errno != errno.EEXIST:
+                raise
+
     for root, dirs, files in os.walk(inputfolder):
         for fich in files:
             if fich.endswith(".pcap") and fich not in observed_pcaps:
