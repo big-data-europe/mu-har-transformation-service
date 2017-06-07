@@ -241,8 +241,8 @@ def transformation_pipeline(inputfolder, outputfolder):
                 # Do not post the whole HAR in ElasticSearch, it is only created for debugging purposes.
                 if not fich.split("_")[1] == "default":
                     # POST TO ElasticSearch.
-                    logger.info("[+] Send file: {har} to ElasticSearch..".format(har=os.path.basename(har_name)))
-                    post_har(har_name, "hars", "har")
+                    logger.info("[+] Send file: {har} to ElasticSearch..".format(har=os.path.basename(enriched_har_name)))
+                    post_har(enriched_har_name, "hars", "har")
 
                     # Only if it was properly transformed.
                     observed_pcaps.append(fich)
