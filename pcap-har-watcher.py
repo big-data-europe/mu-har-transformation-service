@@ -144,6 +144,7 @@ def parse_recursive_har(har, har_name, isBase64 = False, isEntry = False):
     result = {}
     # If it is one of the entries in the entries[] array, enrich it with additional information.
     if isEntry == True:
+        stack = har_name.split("_")[0]
         container_name = har_name.split("_")[1]
         if container_name == "default":
             interface = har_name.split('_')[2]
@@ -152,7 +153,7 @@ def parse_recursive_har(har, har_name, isBase64 = False, isEntry = False):
             interface = har_name.split('_')[5]
             if container_name in containers_link_info:
                 result['links'] = containers_link_info[container_name]
-        result['meta'] = { 'container': container_name, 'interface': interface }
+        result['meta'] = { 'stack': stack, 'container': container_name, 'interface': interface }
 
     # Loop through the keys in the HAR file
     for attr, value in har.iteritems():
