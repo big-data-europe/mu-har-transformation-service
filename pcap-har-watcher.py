@@ -30,6 +30,24 @@ container_data_dir = os.environ['CONTAINER_DATA_DIR']
 container_data_file = os.environ['CONTAINER_DATA_FILE']
 sleep_period = os.environ['SLEEP_PERIOD']
 
+def load_json_from_file( har_file ):
+    """
+    Loads a json from disk and parses it.  Retries when the file fails to load
+
+    Sometimes decoding fails, supposedly because the har file was not written
+    completely yet.  Retrying by sleeping for a moment and syncing the filesystem.
+    """
+    for attempt in range(10):
+        try:
+            return json.loads(open(har_file).read())
+        except:
+            time.sleep(2)
+            subprocess.Popen("sync", shell=True).wait()
+            continue
+        else:
+            raise ValueError("Could not process json file " + har_file)
+
+    return decoded
 
 def get_module_logger(mod_name):
     """
@@ -64,7 +82,7 @@ def parse_container_links(container_name):
 
     containers_links = {}
     containers_file = container_data_dir + container_data_file
-    decoded = json.loads(open(containers_file).read())
+    decoded = load_json_from_file( containers_file )
     container = filter(lambda container: container_name in container['name'], decoded)
     if container: # If not empty
         containers_links = container[0]['links']
@@ -118,8 +136,7 @@ def enrich_har(har_file):
     if not container_name in containers_link_info:
         containers_link_info[container_name] = parse_container_links(container_name)
 
-    decoded = json.loads(open(har_file).read())
-
+    decoded = load_json_from_file( har_file )
     result = parse_recursive_har(decoded, har_file)
 
     newname = har_file[:-4] + '.trans.har'
@@ -181,6 +198,10 @@ def parse_recursive_har(har, har_name, isBase64 = False, isEntry = False):
         else:
             if attr == "text" and isBase64 == True:
                 result[attr] = base64.b64decode(value)
+                try:
+                    result["json"] = json.loads( result[attr] )
+                except:
+                    logger.info( "Failed to parse JSON content of har " + har_name + " with content " + result[attr] );
             else:
                 result[attr] = value
     return result
@@ -194,7 +215,7 @@ def post_har(har_file, index, etype):
         har_file: the .har file name.
         index: the index name to post to in ElasticSearch.
     """
-    decoded = json.loads(open(har_file).read())
+    decoded = load_json_from_file( har_file )
     log = decoded['log']
 
     if log['browser']['name']:
@@ -203,7 +224,7 @@ def post_har(har_file, index, etype):
     url = elastic_host + ":" + elastic_port + "/" + index + "/" + etype + "?pretty"
 
     for i, entry in enumerate(log['entries']):
-        entry['browser'] = browser if browser else { "name": "", "version": "mumble" }
+        entry['browser'] = browser if hasattr(entry, 'browser') else False # why is this?
         # del entry['response']['content'] # Delete the content? take only into account the request?
         response = requests.post(url, data = json.dumps(entry))
         logger.info(response.text)
