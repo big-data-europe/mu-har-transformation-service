@@ -144,7 +144,7 @@ def parse_recursive_har(har, har_name, isBase64 = False, isEntry = False):
     result = {}
     # If it is one of the entries in the entries[] array, enrich it with additional information.
     if isEntry == True:
-        stack = har_name.split("_")[0]
+        stack = har_name.split("_")[0].split("/")[-1]
         container_name = har_name.split("_")[1]
         if container_name == "default":
             interface = har_name.split('_')[2]
