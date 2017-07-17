@@ -47,8 +47,6 @@ def load_json_from_file( har_file ):
         else:
             raise ValueError("Could not process json file " + har_file)
 
-    return decoded
-
 def get_module_logger(mod_name):
     """
     To use this, do logger = get_module_logger(__name__)
@@ -275,6 +273,7 @@ def is_elasticsearch_up():
         urllib2.urlopen(elastic_host + ":" + elastic_port, timeout=1)
         return True
     except urllib2.URLError as err:
+        logger.info(err)
         return False
 
 
