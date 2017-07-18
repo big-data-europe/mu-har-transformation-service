@@ -271,6 +271,7 @@ def transformation_pipeline(inputfolder, outputfolder):
 def is_elasticsearch_up():
     try:
         urllib2.urlopen(elastic_host + ":" + elastic_port, timeout=1)
+        logger.info("Connection to ElasticSearch successful")
         return True
     except urllib2.URLError as err:
         logger.info(err)
